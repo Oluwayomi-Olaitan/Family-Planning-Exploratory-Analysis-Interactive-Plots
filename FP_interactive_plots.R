@@ -70,7 +70,7 @@ saveWidget(
 ggiraph::girafe(
   ggobj = T,
   width_svg = 10,
-  height_svg = 6,
+  height_svg = 8.3,
   options = list(
     ggiraph::opts_hover_inv(css = "opacity: 0.1;"),  # makes non-hovered lines fade
     ggiraph::opts_hover(css = "opacity: 1; stroke-width: 2;")  # on hover: no color change
@@ -159,7 +159,7 @@ saveWidget(
 ggiraph::girafe(
   ggobj = S,
   width_svg = 10,
-  height_svg = 6,
+  height_svg = 8.3,
   options = list(
     ggiraph::opts_hover_inv(css = "opacity: 0.1;"),  # makes non-hovered lines fade
     ggiraph::opts_hover(css = "opacity: 1; stroke-width: 2;")  # on hover: no color change
@@ -237,7 +237,7 @@ saveWidget(
 ggiraph::girafe(
   ggobj = S2,
   width_svg = 10,
-  height_svg = 6,
+  height_svg = 8.3,
   options = list(
     ggiraph::opts_hover_inv(css = "opacity: 0.1;"),  # makes non-hovered lines fade
     ggiraph::opts_hover(css = "opacity: 1; stroke-width: 2;")  # on hover: no color change
@@ -286,7 +286,7 @@ saveWidget(
   ggiraph::girafe(
     ggobj = LC,
     width_svg = 10,
-    height_svg = 6,
+    height_svg = 8.3,
     options = list(
       ggiraph::opts_hover_inv(css = "opacity: 0.1;"),  # makes non-hovered lines fade
       ggiraph::opts_hover(css = "opacity: 1; stroke-width: 2;")  # on hover: no color change
