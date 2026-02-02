@@ -110,7 +110,7 @@ survey_fc_contraceptive_use_data <- survey_contraceptive_use_data |>
 
 ### MODEL DATA of the United Nations Population Division Family Planning Estimation Model Outputs.
 
-FPEM_model_output <- readr::read_csv("Data_FamilyPlanningIndicators_2024.csv")
+FPEM_model_output <- readr::read_csv("Data/Data_FamilyPlanningIndicators_2024.csv")
 
 model_data <- FPEM_model_output |> filter(
   Time >= 1990 & Time <= 2025, # year range

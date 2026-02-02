@@ -1,3 +1,8 @@
+# Install packages (if necessary)
+
+#install.packages("htmlwidgets", "wdiexplorer")
+
+# Loading the packages
 library(htmlwidgets)
 library(wdiexplorer)
 
@@ -9,6 +14,21 @@ dir.create("interactive-plots", showWarnings = FALSE)
 
 source("FP_Survey_Model_Data_wrangling.R")
 
+## To ensure consistent grouping and use of colours throughout this analysis, 
+# we declare the grouping variable and the colour palette for group levels.
+
+# For this exploratory analysis, our grouping variable is sub_region
+
+group_var <- "sub_region"
+
+group_levels <- sort(unique(survey_fc_contraceptive_use_data[[group_var]]))
+
+group_colours <- scales::hue_pal()(length(group_levels))
+
+
+# Assigning names to each of the colours
+names(group_colours) <- group_levels
+
 ## The Trend strength measure
 
 # survey data
@@ -16,7 +36,7 @@ survey_contraceptive_use_trendstrength <- wdiexplorer::compute_trend_shape_featu
   wdi_data = survey_fc_contraceptive_use_data, 
   index = "contraceptive_use_modern"
 ) |> 
-  select(country, trend_strength)
+  dplyr::select(country, trend_strength)
 
 
 survey_contraceptive_use_trendstrength_group <- wdiexplorer::add_group_info(
@@ -37,32 +57,46 @@ model_contraceptive_use_trendstrength_group <- wdiexplorer::add_group_info(
 )
 
 
-## (a) A scatterplot of model-based estimates trend strength against survey data trend strength.
+## (a) A scatterplot of the ratio of model-based estimates trend strength to survey data trend strength against survey data trend strength.  
+## Interactive verison of Figure 2
 
 combined_trend_strength <- model_contraceptive_use_trendstrength_group |>
-  select(country, sub_region, model_trend_strength = trend_strength) |>
-  left_join(survey_contraceptive_use_trendstrength_group |>
-              select(country, survey_trend_strength = trend_strength),
-            join_by("country")) |>
-  mutate(ratio = model_trend_strength / survey_trend_strength)
+  dplyr::select(country, sub_region, model_trend_strength = trend_strength) |>
+  dplyr::left_join(survey_contraceptive_use_trendstrength_group |>
+                     dplyr::select(country, survey_trend_strength = trend_strength),
+                   dplyr::join_by("country")) |>
+  dplyr::mutate(ratio = model_trend_strength / survey_trend_strength)
 
+# identifying the countries with the extreme differences (by ratio)
 
-# identifying the countries with the extreme differences
-trend_strength_top_10 <- combined_trend_strength |>
-  arrange(desc(ratio)) |>
-  dplyr::slice_head(n = 10) |>
-  pull(country)
+trend_strength_labelled_countries <- combined_trend_strength |>
+  dplyr::arrange(desc(ratio)) |>
+  dplyr::slice_head(n = 10) |> # top 10 countries with high ratio
+  dplyr::pull(country)
 
 # the interactive scatterplot
-T <- ggplot2::ggplot(data = combined_trend_strength) + 
+T <- ggplot2::ggplot(data = na.omit(combined_trend_strength)) + 
   ggiraph::geom_point_interactive(
     ggplot2::aes(x = survey_trend_strength, y = ratio, colour = sub_region, tooltip = paste0(
       country,  "\n",
       "Survey: ", sprintf("%.3f", survey_trend_strength), "\t",
       ", Model: ", sprintf("%.3f", model_trend_strength)), data_id = country), size = 2.2) +
-  ggplot2::geom_hline(yintercept = 1) +
-  ggplot2::theme_bw() +
-  theme(legend.position = "bottom")
+  ggplot2::geom_hline(yintercept = 1, colour = "grey40") +
+  ggplot2::theme_bw() + 
+  ggplot2::guides(
+    colour = ggplot2::guide_legend(nrow = 4, byrow = TRUE) 
+  ) +
+  ggplot2::scale_colour_manual(values = group_colours) + # consistent colour scheme
+  ggplot2::theme(
+    axis.title = ggplot2::element_text(size = 13, face = "bold"),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.direction = "horizontal",
+    legend.title = ggplot2::element_text(size = 11),
+    legend.text = ggplot2::element_text(size = 11),
+    legend.key.width = grid::unit(0.6, "cm"),
+    legend.spacing.x = grid::unit(0.3, "cm")
+  )
 
 
 # Interactive plot
@@ -81,14 +115,14 @@ selfcontained = TRUE
 ) 
 
 
-## (b) A scatterplot of model-based estimates trend strength against survey data trend strength
-
+## (b) A scatterplot of model-based estimates silhouette width against survey data silhouette width.  
+# Interactiver version of Figure 6
 survey_contraceptive_use_silwidth <- wdiexplorer::compute_variation(
   wdi_data = survey_contraceptive_use_data, 
   index = "contraceptive_use_modern",
   group_var = "sub_region"
 ) |> 
-  select(country, sil_width)
+  dplyr::select(country, sil_width)
 
 
 survey_contraceptive_use_silwidth_group <- wdiexplorer::add_group_info(
@@ -109,39 +143,60 @@ model_contraceptive_use_silwidth_group <- wdiexplorer::add_group_info(
   wdi_data = model_contraceptive_use_data
 )
 
-# filter sub_region with more than one country as the valid sub_region for the partition plot
-fc_subregions_with_multi_countries <- focus_countries |>
-  distinct(country, sub_region) |>
-  count(sub_region) |>
-  filter(n > 1) |>
-  pull(sub_region)
+## The partition function of `wdiexplorer` ignores group levels with just one country 
+# and only present the metric values of groups with more than one country.
 
 # survey
 survey_fc_contraceptive_use_silwidth_group <- survey_contraceptive_use_silwidth_group |>
-  filter(
-    country %in% focus_countries$country,      # focus countries
-    sub_region %in% fc_subregions_with_multi_countries) # in subregion with more than 1 country
+  dplyr::filter(country %in% focus_countries$country)   # focus countries
 
 # model
 model_fc_contraceptive_use_silwidth_group <- model_contraceptive_use_silwidth_group |>
-  filter(
-    country %in% focus_countries$country,      # focus countries
-    sub_region %in% fc_subregions_with_multi_countries) # in subregion with more than 1 country
+  dplyr::filter(country %in% focus_countries$country)  # focus countries
 
-
+## combining the survey and modelled sil-width
 combined_sil_widths <- model_fc_contraceptive_use_silwidth_group |>
-  select(country, sub_region, model_sil_width = sil_width) |>
-  left_join(survey_fc_contraceptive_use_silwidth_group |>
-              select(country, survey_sil_width = sil_width),
-            join_by("country")) |>
-  mutate(diff = abs(model_sil_width - survey_sil_width))
+  dplyr::select(country, sub_region, model_sil_width = sil_width) |>
+  dplyr::left_join(survey_fc_contraceptive_use_silwidth_group |>
+                     dplyr::select(country, survey_sil_width = sil_width),
+                   dplyr::join_by("country")) |>
+  dplyr::mutate(diff = abs(model_sil_width - survey_sil_width))
 
 
-# Identifying countries with high differences
-sil_widths_top_10 <- combined_sil_widths |>
-  arrange(desc(diff)) |>
-  dplyr::slice_head(n = 10) |>
-  pull(country)
+# the top 3 with the highest absolute differences and the most positive survey_sil_widths
+sil_widths_labelled_countries <- combined_sil_widths |>
+  dplyr::arrange(desc(diff)) |>
+  dplyr::filter(
+    dplyr::row_number() <= 3 | survey_sil_width > 0.4
+  ) |>
+  dplyr::pull(country)
+
+ggplot2::ggplot(data = combined_sil_widths,
+                ggplot2::aes(x = survey_sil_width, y = model_sil_width, colour = sub_region)) +
+  ggplot2::geom_point(size = 2.4) +
+  ggplot2::geom_line(
+    ggplot2::aes(x = survey_sil_width, y = survey_sil_width), colour = "grey40"
+  ) +
+  ggplot2::theme_bw() +
+  ggrepel::geom_label_repel(
+    data = combined_sil_widths |> dplyr::filter(country %in% sil_widths_labelled_countries),
+    ggplot2::aes(
+      label = country, x = survey_sil_width, y = model_sil_width, colour = sub_region), 
+    size = 5.6, inherit.aes = FALSE, show.legend = FALSE, segment.color = "grey"
+  ) +
+  ggplot2::scale_colour_manual(values = group_colours) + # consistent colour scheme
+  ggplot2::theme_bw() +
+  ggplot2::guides(
+    colour = ggplot2::guide_legend(nrow = 3, byrow = TRUE) 
+  ) +
+  ggplot2::theme(
+    axis.title = ggplot2::element_text(size = 19, face = "bold"),
+    axis.text = ggplot2::element_text(size = 17),
+    legend.position = "bottom",
+    legend.title = ggplot2::element_text(size = 17),
+    legend.text = ggplot2::element_text(size = 15)
+  )
+
 
 S <- ggplot(data = combined_sil_widths) +
   ggiraph::geom_point_interactive(
@@ -150,9 +205,20 @@ S <- ggplot(data = combined_sil_widths) +
     country, "\n",
     "Survey: ", sprintf("%.3f", survey_sil_width), "\t",
     "Model: ", sprintf("%.3f", model_sil_width)), data_id = country),
-    size = 2.2) +
-  geom_line(aes(x = survey_sil_width, y = survey_sil_width), colour = "grey") +
-  theme_bw()
+    size = 2.4) +
+  geom_line(aes(x = survey_sil_width, y = survey_sil_width), colour = "grey40") +
+  ggplot2::scale_colour_manual(values = group_colours) + # consistent colour scheme
+  ggplot2::theme_bw() +
+  ggplot2::guides(
+    colour = ggplot2::guide_legend(nrow = 3, byrow = TRUE) 
+  ) +
+  ggplot2::theme(
+    axis.title = ggplot2::element_text(size = 19, face = "bold"),
+    axis.text = ggplot2::element_text(size = 17),
+    legend.position = "bottom",
+    legend.title = ggplot2::element_text(size = 15),
+    legend.text = ggplot2::element_text(size = 13)
+  )
 
 # Interactive plot
 saveWidget(
@@ -170,67 +236,89 @@ selfcontained = TRUE
 ) 
 
 
-## (c) Identifying top 10 countries with the highest differences and 
-## compare their data trajectories with their neighbouring countries in the same sub-region.
+## (c) Data trajectories of the labelled countries, comparing their trajectories with neighbouring countries in their sub-region. 
+# Interactive version of Figure 7.
 
+# top 3 with the highest absolute differences and the most positive survey_sil_widths
+sil_widths_labelled_countries_subregion <- combined_sil_widths |>
+  dplyr::arrange(desc(diff)) |>
+  dplyr::filter(
+    dplyr::row_number() <= 3 | 
+      survey_sil_width > 0.4
+  ) |>
+  dplyr::select(sub_region, labelled_country = country)
 
-# subregion of the top 10 countries
-sil_widths_top_10_subregion <- combined_sil_widths |>
-  arrange(desc(diff)) |>
-  dplyr::slice_head(n = 10) |>
-  pull(sub_region) |> unique()
+# labelled countries
+sil_widths_labelled_countries <- sil_widths_labelled_countries_subregion |>
+  dplyr::pull(labelled_country)
 
+sil_widths_labelled_countries_data_metrics <- survey_fc_contraceptive_use_data |>
+  dplyr::filter(country %in% sil_widths_labelled_countries) |> # survey data of labelled countries
+  dplyr::select(division_numeric_code, year, country, region, sub_region, contraceptive_use_modern) |>
+  dplyr::inner_join(
+    sil_widths_labelled_countries_subregion, 
+    by = "sub_region",
+    relationship = "many-to-many"
+  ) |>
+  dplyr::left_join( # joining both survey and modelled sil-width metrics
+    combined_sil_widths |> 
+      dplyr::select(country, model_sil_width, survey_sil_width),
+    by = c("labelled_country" = "country")
+  )
 
-# The data for focus countries with more than one country in its sub-region
-sil_widths_top_10_subregion_data <- survey_fc_contraceptive_use_data |>
-  filter(
-    sub_region %in% sil_widths_top_10_subregion) # focus countries in subregion with more than 1 country
+# pulling the modelled data of labelled countries and other countries in their subregion
+sil_widths_model_data <- model_fc_contraceptive_use_data |>
+  dplyr::filter(
+    sub_region %in% sil_widths_labelled_countries_subregion$sub_region
+  ) |>
+  dplyr::inner_join(
+    sil_widths_labelled_countries_subregion, 
+    by = "sub_region",
+    relationship = "many-to-many" # for sub_region with more than 1 labelled country
+  )
 
+sub_region_order <- c("Western Africa", "Melanesia", "Western Asia", "Middle Africa")
 
-#Joining the model-based estimates with the combine sil_widths
+sil_widths_labelled_countries_data_metrics$sub_region <- factor(
+  sil_widths_labelled_countries_data_metrics$sub_region, levels = sub_region_order
+)
 
-model_fc_data_sil_width_metrics <- model_fc_contraceptive_use_data |>
-  filter(
-    sub_region %in% sil_widths_top_10_subregion) |> # focus countries in subregion with more than 1 country
-  left_join(model_fc_contraceptive_use_silwidth_group |>
-              select(country, model_sil_width = sil_width), by = "country") |>
-  left_join(survey_fc_contraceptive_use_silwidth_group |>
-              select(country, survey_sil_width = sil_width), by = "country")
+sil_widths_model_data$sub_region <- factor(
+  sil_widths_model_data$sub_region, levels = sub_region_order
+)
 
 # the plot
 
+
 S2 <- ggplot2::ggplot() +
-  ggplot2::geom_point(
-    data = sil_widths_top_10_subregion_data,
-      ggplot2::aes(x = year, y = contraceptive_use_modern), 
-      size = 1.55, colour = "grey60") +
-  ggplot2::geom_point(
-    data = sil_widths_top_10_subregion_data |> 
-        filter(country %in% sil_widths_top_10),
-    ggplot2::aes(x = year, y = contraceptive_use_modern, colour = country,), 
-        size = 1.55) +
   ggiraph::geom_line_interactive(
-    data = model_fc_data_sil_width_metrics, 
-      ggplot2::aes(x = year, y = contraceptive_use_modern, group = country, 
-            tooltip = paste(
-               country, "\n",
-               "Survey: ", sprintf("%.3f", survey_sil_width), "\t",
-               "Model: ", sprintf("%.3f", model_sil_width)), data_id = country), 
-                colour = "grey55") +
+  data = sil_widths_model_data |> 
+    dplyr::filter(country != labelled_country), 
+  ggplot2::aes(x = year, y = contraceptive_use_modern, group = country, 
+                tooltip = paste(country), data_id = country
+  ), colour = "grey80") +
+  ggplot2::geom_point(
+    data = sil_widths_labelled_countries_data_metrics |> 
+      dplyr::filter(country == labelled_country),
+    ggplot2::aes(x = year, y = contraceptive_use_modern, colour = sub_region), 
+    size = 1.5) +
   ggiraph::geom_line_interactive(
-    data = model_fc_data_sil_width_metrics |> 
-      filter(country %in% sil_widths_top_10), 
-    ggplot2::aes(x = year, y = contraceptive_use_modern, group = country, colour = country, 
-                 tooltip = paste(
-      country, "\n",
-      "Survey: ", sprintf("%.3f", survey_sil_width), "\t",
-      ", Model: ", sprintf("%.3f", model_sil_width)), data_id = country)) +
-  ggplot2::facet_wrap(~forcats::fct_relevel(sub_region, sil_widths_top_10_subregion), 
-             nrow = 3, scales = "free") +
+    data = sil_widths_model_data |> 
+      dplyr::filter(country == labelled_country), 
+    ggplot2::aes(x = year, y = contraceptive_use_modern, group = country, 
+                 colour = sub_region, tooltip = paste(
+                   country, "\n",
+                   "Survey: ", sprintf("%.3f", survey_sil_width), "\t",
+                   "Model: ", sprintf("%.3f", model_sil_width)), data_id = country
+    )) +
+  ggh4x::facet_wrap2(~sub_region + labelled_country, 
+                     nrow = 3, scales = "free") +
+  ggplot2::scale_colour_manual(values = group_colours) + # consistent colour scheme
   ggplot2::ylab("Modern contraceptive use proportion") +
   ggplot2::theme_bw() +
-  ggplot2::theme(legend.position = "none")
-
+  ggplot2::theme(legend.position = "none",
+                 strip.text = ggplot2::element_text(size = 12, face = "bold"),
+                 axis.title = ggplot2::element_text(size = 12, face = "bold"))
 
 # Interactive plot
 saveWidget(
@@ -248,38 +336,70 @@ selfcontained = TRUE
 )
 
 
-## (d) Filtering the corresponding predicted data for pairs where we have survey data.
+## (d) A scatterplot of residuals curvature versus linearity. 
+# Interactive version of Figure 8
 
-contraceptive_data_residuals <- survey_fc_contraceptive_use_data |>
-  select(country, year, survey_data = contraceptive_use_modern) |>
-  left_join(model_fc_contraceptive_use_data |>
-              select(country, year, region, sub_region,
-                     model_data = contraceptive_use_modern),
-            by = c("country", "year")) |>
-  mutate(residuals = model_data - survey_data)
+# filtering the predicted data for country-year pair with available survey data
+fc_contraceptive_data_residuals <- survey_fc_contraceptive_use_data |>
+  dplyr::select(country, year, survey_data = contraceptive_use_modern) |>
+  dplyr::left_join(
+    model_fc_contraceptive_use_data |> # modelled data for available survey data pairs
+      dplyr::select(country, year, region, sub_region,
+                    model_data = contraceptive_use_modern),
+    by = c("country", "year")
+  ) |>
+  dplyr::mutate(residuals = survey_data - model_data)
 
 
 ## Computing the linearity and curvature
 
 residual_temporal_features <- wdiexplorer::compute_trend_shape_features(
-  wdi_data = contraceptive_data_residuals,
+  wdi_data = fc_contraceptive_data_residuals,
   index = "residuals")
 
 residual_temporal_features_group <- wdiexplorer::add_group_info(
   metric_summary = residual_temporal_features, 
-  wdi_data = contraceptive_data_residuals
+  wdi_data = fc_contraceptive_data_residuals
 )
 
+# labelled countries
+residuals_labelled_countries <- residual_temporal_features_group |>
+  dplyr::filter(
+    linearity > 0.05 | 
+      curvature < -0.018 |
+      (linearity < -0.05 & curvature < -0.01)|
+      (linearity < -0.045 & curvature > 0.01)
+  ) |>
+  dplyr::pull(country)
 
+# the plot
 LC <- ggplot2::ggplot(
-    data = residual_temporal_features_group) +
-  ggiraph::geom_point_interactive(
-    data = residual_temporal_features_group, 
+    data = na.omit(residual_temporal_features_group)) +
+  ggiraph::geom_point_interactive( 
     ggplot2::aes(x = linearity, y = curvature,
-                 tooltip = paste(country), data_id = country, colour = sub_region)
+                 tooltip = paste(
+                   country, "\n",
+                   "Linearity: ", sprintf("%.3f", linearity), "\t",
+                   ", Curvature: ", sprintf("%.3f", curvature)), 
+                 data_id = country, colour = sub_region)
     ) +
+  ggplot2::geom_hline(yintercept = 0, colour = "grey20") + 
+  ggplot2::geom_vline(xintercept = 0, colour = "grey20") +
   ggplot2::theme_bw() +
-  ggplot2::theme(legend.position = "bottom")
+  ggplot2::guides(
+    colour = ggplot2::guide_legend(nrow = 3, byrow = TRUE) 
+  ) +
+  ggplot2::scale_colour_manual(values = group_colours) + # consistent colour scheme
+  ggplot2::theme(
+    axis.title = ggplot2::element_text(size = 15, face = "bold"),
+    legend.position = "bottom",
+    legend.box = "horizontal",
+    legend.direction = "horizontal",
+    legend.title = ggplot2::element_text(size = 14),
+    legend.text = ggplot2::element_text(size = 10),
+    legend.key.width = grid::unit(0.6, "cm"),
+    legend.spacing.x = grid::unit(0.5, "cm")
+  )
 
 # Interactive plot
 saveWidget(
@@ -292,7 +412,7 @@ saveWidget(
       ggiraph::opts_hover(css = "opacity: 1; stroke-width: 2;")  # on hover: no color change
     )
   ),
-  file = "interactive-plots/curvature_linearity_plot.html",
+  file = "interactive-plots/residuals_curvature_linearity_plot.html",
   selfcontained = TRUE
 )
 
