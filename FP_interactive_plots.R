@@ -287,6 +287,11 @@ sil_widths_model_data$sub_region <- factor(
   sil_widths_model_data$sub_region, levels = sub_region_order
 )
 
+sil_widths_model_data_metrics <- sil_widths_model_data |>
+  dplyr::left_join(combined_sil_widths |> 
+                     dplyr::select(country, model_sil_width, survey_sil_width), 
+                   by = "country")
+
 # the plot
 
 
@@ -303,7 +308,7 @@ S2 <- ggplot2::ggplot() +
     ggplot2::aes(x = year, y = contraceptive_use_modern, colour = sub_region), 
     size = 1.5) +
   ggiraph::geom_line_interactive(
-    data = sil_widths_model_data |> 
+    data = sil_widths_model_data_metrics |> 
       dplyr::filter(country == labelled_country), 
     ggplot2::aes(x = year, y = contraceptive_use_modern, group = country, 
                  colour = sub_region, tooltip = paste(
@@ -364,11 +369,11 @@ residual_temporal_features_group <- wdiexplorer::add_group_info(
 
 # labelled countries
 residuals_labelled_countries <- residual_temporal_features_group |>
-  dplyr::filter(
-    linearity > 0.05 | 
-      curvature < -0.018 |
-      (linearity < -0.05 & curvature < -0.01)|
-      (linearity < -0.045 & curvature > 0.01)
+  dplyr::filter(country == "Burkina Faso" | # one of the countries that stood out in the previous sections
+                  linearity > 0.09 | 
+                  curvature < -0.018 |
+                  (linearity < -0.05 & curvature < -0.01)|
+                  (linearity < -0.045 & curvature > 0.01)
   ) |>
   dplyr::pull(country)
 
@@ -426,7 +431,7 @@ files <- list.files("interactive-plots", pattern = "\\.html$", full.names = FALS
 
 links <- paste0("<li><a href='interactive-plots/", files, "'>", files, "</a></li>")
 
-
+# creating the html widgets
 family_planning_analysis_interactive_plot_html <- paste0(
   "<!DOCTYPE html><html><head><title>Family planning modern contraceptive use exploratory data analysis interactive plots gallery</title></head><body>",
   "<h1>Family planning modern contraceptive use exploratory data analysis interactive plots gallery</h1><ul>",
